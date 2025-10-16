@@ -1,0 +1,12 @@
+version: "3.9"
+services:
+  app:
+    build: .
+    image: ai-auto:dev
+    container_name: ai-auto
+    env_file: .env
+    volumes:
+      - ./data:/app/data:ro
+      - ./work:/app/work
+      - ./logs:/app/logs
+    command: ["python", "-m", "src.main", "--help"]

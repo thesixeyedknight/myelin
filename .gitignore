@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+.env
+.pytest_cache/
+
+# Project artifacts
+logs/
+work/
+data/
+
+# Editors
+.vscode/
+.idea/
+.DS_Store
