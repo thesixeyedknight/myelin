@@ -7,7 +7,11 @@ UNIPROT_API = "https://rest.uniprot.org/uniprotkb/search"
 
 
 @tool("RCSBFindByGene")
-def rcsb_find_by_gene(gene: str, organism: str = "Homo sapiens", rows: int = 10) -> dict:
+def rcsb_find_by_gene(gene: str, organism: str = "Homo sapiens", rows: int = 10, experimental_only: bool = False) -> dict:
+    request_options = {"paginate": {"rows": rows, "start": 0}}
+    if experimental_only:
+        request_options["results_content_type"] = ["experimental"]
+    
     query = {
         "query": {
             "type": "group",
