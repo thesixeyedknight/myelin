@@ -31,7 +31,10 @@ class Settings(BaseModel):
     # Sandbox limits
     max_worker_seconds: int = int(os.getenv("MAX_WORKER_SECONDS", 10))
     max_worker_memory_mb: int = int(os.getenv("MAX_WORKER_MEMORY_MB", 256))
-    
+
+    # LLM IO dump - save full prompts/responses under logs/llm/ for debugging
+    save_llm_io: bool = os.getenv("SAVE_LLM_IO", "0") in {"1", "true", "True"}
+
     # RAG settings
     rag_enabled: bool = os.getenv("RAG_ENABLED", "true").lower() == "true"
     rag_collection_name: str = os.getenv("RAG_COLLECTION_NAME", "myelin_kb")
@@ -60,6 +63,14 @@ class Settings(BaseModel):
         def get(key, default):
             return os.getenv(key.upper(), file_data.get(key, default))
 
+        def get_bool(key, default: bool) -> bool:
+            # config.yaml (YAML) may hand back a native bool; env vars are
+            # always strings. Handle both instead of assuming .lower() exists.
+            val = get(key, default)
+            if isinstance(val, bool):
+                return val
+            return str(val).strip().lower() in {"1", "true", "yes"}
+
         return cls(
             gemini_api_key=os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or file_data.get("gemini_api_key", ""),
             gemini_model=get("gemini_model", "gemini-2.5-flash"),
@@ -74,7 +85,8 @@ class Settings(BaseModel):
             quota_lite=int(get("quota_lite", 1000)),
             max_worker_seconds=int(get("max_worker_seconds", 10)),
             max_worker_memory_mb=int(get("max_worker_memory_mb", 256)),
-            rag_enabled=get("rag_enabled", "true").lower() == "true",
+            save_llm_io=get_bool("save_llm_io", False),
+            rag_enabled=get_bool("rag_enabled", True),
             rag_collection_name=get("rag_collection_name", "myelin_kb"),
             rag_chunk_size=int(get("rag_chunk_size", 500)),
             rag_chunk_overlap=int(get("rag_chunk_overlap", 100)),

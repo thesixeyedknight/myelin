@@ -1,6 +1,9 @@
 """Tools package initialization."""
 from __future__ import annotations
 
+# Re-export the registry API at package level (from src.tools import tool, dispatch, ...)
+from .registry import tool, list_tools, dispatch  # noqa: F401
+
 # Import all tools to register them
 from src.tools import web
 from src.tools import pubmed

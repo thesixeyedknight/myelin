@@ -120,14 +120,36 @@ class HierarchicalOrchestrator:
         
         for i, subtask in enumerate(subtasks):
             LOGGER.log(event="subtask_start", run_id=self.run_id, index=i, subtask=subtask)
-            evidence = self.worker.execute(subtask, shared_context)
+
+            # The underlying Orchestrator now fails loud (raises) on bad plans
+            # or tool errors instead of silently swallowing them - that's the
+            # right behavior for a single run, but one bad subtask shouldn't
+            # take down the rest of a multi-subtask hierarchical run. Catch
+            # here, log it clearly, and keep going so later subtasks (and the
+            # final report) still get a chance to run.
+            try:
+                evidence = self.worker.execute(subtask, shared_context)
+                evidence_dump = evidence.model_dump()
+                tool_outputs = evidence.tool_outputs
+            except Exception as e:
+                LOGGER.log(
+                    level="ERROR",
+                    event="subtask_failed",
+                    run_id=self.run_id,
+                    index=i,
+                    subtask=subtask,
+                    error=str(e),
+                )
+                evidence_dump = {"tool_outputs": {}, "citations": [], "notes": [], "error": str(e)}
+                tool_outputs = {}
+
             all_evidence.append({
                 "subtask": subtask,
-                "evidence": evidence.model_dump()
+                "evidence": evidence_dump
             })
-            
+
             # Update shared context with outputs from this subtask
-            shared_context[f"subtask_{i}"] = evidence.tool_outputs
+            shared_context[f"subtask_{i}"] = tool_outputs
         
         LOGGER.log(event="hierarchical_end", run_id=self.run_id, subtasks_completed=len(subtasks))
         
