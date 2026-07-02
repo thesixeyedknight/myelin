@@ -8,7 +8,7 @@ import json
 
 try:
     from scipy.cluster.hierarchy import linkage, fcluster
-    from scipy.spatial.distance import pdist
+    from scipy.spatial.distance import squareform
     from sklearn.preprocessing import StandardScaler
 except ImportError as e:
     raise ImportError(f"Missing required package: {e}. Install with: pip install scipy scikit-learn")
@@ -86,8 +86,11 @@ def wgcna_analysis(
         dist_matrix = 1 - np.abs(corr_matrix.values)
         
         # Hierarchical clustering
-        # Convert to condensed distance matrix for linkage
-        condensed_dist = pdist(dist_matrix, metric='euclidean')
+        # dist_matrix is already a gene x gene distance matrix; convert it to
+        # condensed form directly rather than re-deriving distances between
+        # its rows (which would cluster on distance *profiles*, not on the
+        # correlation distances themselves).
+        condensed_dist = squareform(dist_matrix, checks=False)
         linkage_matrix = linkage(condensed_dist, method='average')
         
         # Cut tree to form modules

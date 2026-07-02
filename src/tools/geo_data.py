@@ -66,11 +66,26 @@ def geo_download(geo_id: str, output_dir: str = "work/geo_data") -> Dict[str, An
             
             # Extract disease/control status from characteristics
             characteristics = gsm.metadata.get('characteristics_ch1', [])
+            disease_state_found = False
+            tissue_found = False
             for char in characteristics:
-                if 'disease state' in char.lower() or 'disease' in char.lower():
-                    sample_info['disease_state'] = char.split(':')[-1].strip()
-                if 'tissue' in char.lower() or 'cell type' in char.lower():
-                    sample_info['tissue'] = char.split(':')[-1].strip()
+                char_lower = char.lower()
+                if not disease_state_found:
+                    if char_lower.startswith('disease state'):
+                        sample_info['disease_state'] = char.split(':')[-1].strip()
+                        disease_state_found = True
+                    elif 'disease' in char_lower:
+                        # Fallback for series that don't use the 'disease state' label,
+                        # but don't lock it in so a later exact 'disease state' match can override it.
+                        sample_info['disease_state'] = char.split(':')[-1].strip()
+                if not tissue_found:
+                    if char_lower.startswith('tissue') or char_lower.startswith('cell type'):
+                        sample_info['tissue'] = char.split(':')[-1].strip()
+                        tissue_found = True
+                    elif 'tissue' in char_lower or 'cell type' in char_lower:
+                        sample_info['tissue'] = char.split(':')[-1].strip()
+                if disease_state_found and tissue_found:
+                    break
             
             sample_metadata.append(sample_info)
             

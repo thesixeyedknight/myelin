@@ -91,28 +91,39 @@ def differential_expression(
         # Filter expression matrix for these samples
         case_expr = expr_df[case_samples]
         control_expr = expr_df[control_samples]
-        
+
+        # Microarray/log2-intensity platforms (e.g. Illumina) ship expression
+        # values already on a log2 scale (typically ~0-20); raw RNA-seq counts
+        # span a much wider linear range. log2FC must be computed differently
+        # in each case, otherwise pre-logged data gets log2'd a second time
+        # and real fold changes are crushed to near zero.
+        is_log_scale = expr_df.max().max() < 30
+
         # Perform differential expression analysis
         results = []
-        
+
         for gene_id in expr_df.index:
             case_values = case_expr.loc[gene_id].values
             control_values = control_expr.loc[gene_id].values
-            
+
             # Remove NaN values
             case_values = case_values[~np.isnan(case_values)]
             control_values = control_values[~np.isnan(control_values)]
-            
+
             if len(case_values) < 2 or len(control_values) < 2:
                 continue
-            
+
             # Calculate statistics
             case_mean = np.mean(case_values)
             control_mean = np.mean(control_values)
-            
+
             # Log2 fold change
-            # Add small constant to avoid log(0)
-            log2fc = np.log2(case_mean + 1) - np.log2(control_mean + 1)
+            if is_log_scale:
+                # Values are already log2-scale: difference of means IS the log2FC.
+                log2fc = case_mean - control_mean
+            else:
+                # Raw/linear-scale values: add a small constant to avoid log(0).
+                log2fc = np.log2(case_mean + 1) - np.log2(control_mean + 1)
             
             # T-test
             t_stat, p_value = stats.ttest_ind(case_values, control_values)
@@ -128,13 +139,18 @@ def differential_expression(
         
         # Convert to DataFrame
         results_df = pd.DataFrame(results)
-        
+
         # FDR correction (Benjamini-Hochberg)
+        # Genes with undefined p-values (e.g. zero-variance samples) can't be
+        # corrected and must be excluded, otherwise a single NaN poisons the
+        # entire multipletests output.
+        results_df['adj_p_value'] = np.nan
+        valid_pvalue_mask = results_df['p_value'].notna()
         _, adj_pvalues, _, _ = multipletests(
-            results_df['p_value'], 
+            results_df.loc[valid_pvalue_mask, 'p_value'],
             method='fdr_bh'
         )
-        results_df['adj_p_value'] = adj_pvalues
+        results_df.loc[valid_pvalue_mask, 'adj_p_value'] = adj_pvalues
         
         # Filter DEGs
         deg_df = results_df[

@@ -174,10 +174,10 @@ def _parse_tool(step: str):
                 except Exception:
                     raise ValueError(f"Could not parse list literal in TOOL step: {v_str}")
 
-            # ints (best-effort)
+            # numbers and other literals (int, float, None, negative numbers, etc.)
             else:
                 try:
-                    v_parsed = int(v_str)
+                    v_parsed = ast.literal_eval(v_str)
                 except Exception:
                     v_parsed = v_str
 
@@ -304,11 +304,14 @@ class Orchestrator:
         return resp == "y"
 
     def _substitute_variables(self, kwargs: dict) -> dict:
-        """Substitute variable placeholders in tool arguments.
+        """Substitute {{ variable_name }} placeholders in tool arguments from context.
 
-        Supports two strategies:
-        1. Explicit: {{ variable_name }} -> resolve from context
-        2. Implicit: if the raw value matches a context key, substitute it
+        Only explicit {{ variable }} placeholders are resolved. There used to
+        be an implicit strategy that substituted any literal argument string
+        matching a context key, but context keys come from flattening every
+        tool's nested dict output (e.g. sample_groups={'SLE': 924}), so a
+        plain literal like case_label='SLE' could silently turn into the int
+        924 by coincidental collision. Explicit placeholders are unambiguous.
 
         Runs before `_precheck_tool_call` so validation sees resolved values
         (real paths, real lists) rather than template syntax.
@@ -320,7 +323,6 @@ class Orchestrator:
                 substituted[key] = value
                 continue
 
-            # Strategy 1: Explicit {{ variable }} placeholders
             match = _VAR_REGEX.search(value)
             if match:
                 var_name = match.group(1)
@@ -342,17 +344,6 @@ class Orchestrator:
                         available_keys=list(self.context.keys()),
                     )
                     substituted[key] = value  # Keep original if not found
-            # Strategy 2: Implicit key lookup
-            elif value in self.context:
-                resolved_value = self.context[value]
-                substituted[key] = resolved_value
-                LOGGER.debug(
-                    event="variable_substituted",
-                    run_id=self.run_id,
-                    strategy="implicit",
-                    variable=value,
-                    value=resolved_value,
-                )
             else:
                 substituted[key] = value
 

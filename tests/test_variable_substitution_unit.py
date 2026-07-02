@@ -12,27 +12,30 @@ class MockOrchestrator:
         self.run_id = "test123"
     
     def _substitute_variables(self, kwargs: dict) -> dict:
-        """Substitute variable placeholders in tool arguments.
-        
-        Supports two strategies:
-        1. Explicit: {{ variable_name }} -> resolve from context
-        2. Implicit: if value matches a context key, substitute it
-        
+        """Substitute {{ variable_name }} placeholders in tool arguments from context.
+
+        Only explicit {{ variable }} placeholders are resolved. There used to
+        be an implicit strategy that substituted any literal argument string
+        matching a context key, but context keys come from flattening every
+        tool's nested dict output (e.g. sample_groups={'SLE': 924}), so a
+        plain literal like case_label='SLE' could silently turn into the
+        unrelated int 924 by coincidental collision. Explicit placeholders
+        are unambiguous.
+
         Args:
             kwargs: Tool arguments dictionary
-            
+
         Returns:
             Updated kwargs with variables resolved
         """
         VAR_REGEX = re.compile(r"\{\{\s*([\w_]+)\s*\}\}")
         substituted = {}
-        
+
         for key, value in kwargs.items():
             if not isinstance(value, str):
                 substituted[key] = value
                 continue
-                
-            # Strategy 1: Explicit {{ variable }} placeholders
+
             match = VAR_REGEX.search(value)
             if match:
                 var_name = match.group(1)
@@ -54,20 +57,9 @@ class MockOrchestrator:
                         available_keys=list(self.context.keys())
                     )
                     substituted[key] = value  # Keep original if not found
-            # Strategy 2: Implicit key lookup
-            elif value in self.context:
-                resolved_value = self.context[value]
-                substituted[key] = resolved_value
-                LOGGER.log(
-                    event="variable_substituted",
-                    run_id=self.run_id,
-                    strategy="implicit",
-                    variable=value,
-                    value=resolved_value
-                )
             else:
                 substituted[key] = value
-                
+
         return substituted
 
 
@@ -82,15 +74,15 @@ def test_explicit_placeholder():
     assert result["path"] == "/tmp/test.txt"
 
 
-def test_implicit_lookup():
-    """Test implicit key lookup."""
+def test_no_implicit_lookup():
+    """Bare literal args must NOT be swapped just because they match a context key."""
     orch = MockOrchestrator()
     orch.context = {"deg_file": "/work/results.csv"}
-    
+
     kwargs = {"input": "deg_file"}
     result = orch._substitute_variables(kwargs)
-    
-    assert result["input"] == "/work/results.csv"
+
+    assert result["input"] == "deg_file"
 
 
 def test_literal_passthrough():

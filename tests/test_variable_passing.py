@@ -67,8 +67,15 @@ def test_explicit_placeholder_substitution(mock_llm, mock_tools):
     assert orch.context["output_file"] == "/tmp/test.txt"
 
 
-def test_implicit_key_lookup(mock_llm, mock_tools):
-    """Test implicit variable lookup when argument value matches context key."""
+def test_no_implicit_key_lookup(mock_llm, mock_tools):
+    """Bare literal args must NOT be swapped just because they match a context key.
+
+    Implicit lookup used to substitute any literal argument value that
+    coincidentally matched a context key. Context keys come from flattening
+    every tool's nested dict output (e.g. sample_groups={'SLE': 924}), so a
+    plain literal like case_label='SLE' could silently turn into the
+    unrelated int 924. Only explicit {{ variable }} placeholders resolve now.
+    """
     plan_json = json.dumps({
         "steps": [
             "{TOOL:DiffExpression(expression_file='data.csv')}",
@@ -76,12 +83,12 @@ def test_implicit_key_lookup(mock_llm, mock_tools):
         ]
     })
     summary_text = "Complete."
-    
+
     mock_llm.generate.side_effect = [
         (plan_json, {"tokens": 10}, "flash"),
         (summary_text, {"tokens": 5}, "flash")
     ]
-    
+
     mock_tools.list_tools.return_value = "DiffExpression, EnrichmentAnalysis"
     mock_tools.dispatch.side_effect = [
         {
@@ -91,14 +98,14 @@ def test_implicit_key_lookup(mock_llm, mock_tools):
         },
         {"success": True, "pathways": ["pathway1", "pathway2"]}
     ]
-    
+
     orch = Orchestrator(auto_approve=True)
     evidence = orch.run("Analyze differential expression")
-    
-    # Verify second tool received resolved path
+
+    # Bare literal "deg_file" is passed through unchanged, not resolved
     second_call = mock_tools.dispatch.call_args_list[1]
     assert second_call[0][0] == "EnrichmentAnalysis"
-    assert second_call[1]["input"] == "/work/deg_results/deg_results.csv"
+    assert second_call[1]["input"] == "deg_file"
 
 
 def test_no_substitution_with_literal_values(mock_llm, mock_tools):
