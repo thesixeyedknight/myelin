@@ -43,3 +43,10 @@ A tiny agentic runner that plans steps with an LLM (Gemini), calls domain tools 
 
 * Network access for generated code is **disabled by policy** (runner prevents `socket` by default). If you need it, enable explicitly.
 * PubMed access respects NCBI E-utilities etiquette with backoff.
+
+## Use Cases
+
+See [use_cases.md](use_cases.md) for detailed scenarios, including:
+1.  **Automated Literature Review**: Search PubMed, extract data, and plot trends.
+2.  **Protein Homology Pipeline**: BLAST sequences and find PDB structures.
+3.  **Data QC Automation**: Generate scripts to parse and validate local data files.

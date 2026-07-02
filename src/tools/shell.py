@@ -4,7 +4,7 @@ import shlex
 import os
 from src.tools.registry import tool
 
-SAFE_BIN = {"wc", "head", "tail", "cut", "sort", "uniq", "awk"}
+SAFE_BIN = {"wc", "head", "tail", "cut", "sort", "uniq", "awk", "ls", "grep"}
 
 
 @tool("SafeShell")

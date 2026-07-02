@@ -11,11 +11,50 @@ from src.configs.settings import SETTINGS
 DENY_IMPORTS = {"socket", "subprocess", "ssl", "urllib", "http", "ftplib"}
 
 POLICY_PREAMBLE = """
-import builtins, sys
+import builtins
+import sys
+import os
+import shutil
+
+# 1. Block dangerous imports
 for mod in %(deny)s:
     sys.modules[mod] = None
-# Simple guard: prevent open network by sabotaging socket
-sys.modules['socket'] = None
+
+# 2. Restrict File I/O
+_orig_open = builtins.open
+
+def _safe_open(file, mode='r', buffering=-1, encoding=None, errors=None, newline=None, closefd=True, opener=None):
+    if isinstance(file, int):
+        return _orig_open(file, mode, buffering, encoding, errors, newline, closefd, opener)
+    
+    # Resolve path
+    try:
+        path = os.path.abspath(str(file))
+        cwd = os.getcwd()
+        
+        # Check confinement
+        if not path.startswith(cwd):
+            raise PermissionError(f"Sandbox violation: Access to {file} outside working directory is denied.")
+            
+    except Exception as e:
+        raise PermissionError(f"Sandbox violation: Invalid path {file}") from e
+
+    return _orig_open(file, mode, buffering, encoding, errors, newline, closefd, opener)
+
+builtins.open = _safe_open
+
+# 3. Disable File Deletion
+def _deny(*args, **kwargs):
+    raise PermissionError("Sandbox violation: This operation is disabled.")
+
+os.remove = _deny
+os.unlink = _deny
+os.rmdir = _deny
+shutil.rmtree = _deny
+
+# 4. Disable other dangerous os functions
+os.system = _deny
+os.popen = _deny
 """
 
 
@@ -30,7 +69,13 @@ def _limit_resources():
 def run_python(code: str) -> dict:
     policy = POLICY_PREAMBLE % {"deny": repr(tuple(DENY_IMPORTS))}
     wrapped = policy + "\n" + textwrap.dedent(code)
-    with tempfile.TemporaryDirectory(dir="/app/work") as td:
+    
+    # Use local work dir if it exists, otherwise system temp
+    work_dir = Path("work").resolve()
+    if not work_dir.exists():
+        work_dir = None
+        
+    with tempfile.TemporaryDirectory(dir=work_dir) as td:
         script = Path(td) / "snippet.py"
         script.write_text(wrapped, encoding="utf-8")
         env = os.environ.copy()

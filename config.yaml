@@ -1,0 +1,13 @@
+# Myelin Configuration
+
+# LLM Settings
+gemini_model: "gemini-2.5-flash"
+log_level: "INFO"
+
+# NCBI Settings (for PubMed)
+ncbi_email: "your_email@example.com"
+# ncbi_api_key: "your_api_key"
+
+# Sandbox Limits
+max_worker_seconds: 30
+max_worker_memory_mb: 512
