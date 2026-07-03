@@ -22,8 +22,7 @@ Verified working end-to-end (this session, real Gemini + NCBI calls):
   `WebSearch`, plus RAG tools `IndexDocument`/`QueryKnowledge`/`ListIndexedDocuments`.
 * **Bioinformatics correctness fixes** (GEO sample-group labeling,
   log2FC double-transform, WGCNA distance matrix) landed and re-verified
-  against cached GSE65391/WGCNA output — sample counts and module sizes
-  now look sane.
+  against cached GSE65391/WGCNA output.
 * **Sandbox**: CPU/memory/time-limited Python execution for `{CODE:}`
   steps; network access disabled by policy inside generated code.
 * **RAG**: local Chroma-backed indexing/query, including an adversarial
@@ -45,13 +44,6 @@ Verified working end-to-end (this session, real Gemini + NCBI calls):
   server-side free tier has no `pro` quota at all — but it means the
   hierarchical/review/writer path can't complete until the key has paid
   `pro` access, or those steps are pointed at `flash`.
-* **Docker workflow** (`Dockerfile`/`docker-compose.yml`) is present but
-  wasn't verified this session (no Docker permissions in this environment).
-  The primary, verified way to run the project is directly inside the
-  `myelin` conda env (see Quickstart).
-* A stray, unused module (`src/agent/writer_agent.py`) references
-  provider/backend settings not wired into the active pipeline — dead code,
-  safe to ignore.
 
 ## Quickstart
 
