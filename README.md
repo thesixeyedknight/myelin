@@ -32,18 +32,16 @@ Verified working end-to-end (this session, real Gemini + NCBI calls):
   `work/api_usage_audit.csv`); `scripts/usage_report.py` prints a summary.
 * **Test suite**: `pytest tests/` → 23 passed (unit + mocked integration +
   sandbox + RAG + variable substitution/passing).
-
-### Known limitations
-
 * **Hierarchical multi-agent mode** (`HierarchicalOrchestrator`: Director →
-  Reviewer → Worker → Writer) decomposes goals fine on the `lite` tier, but
-  the Reviewer and Writer steps require the `pro` tier
-  (`gemini-2.5-pro`), and the current API key's free tier allows **zero**
-  daily `pro` requests (Google returns `429 RESOURCE_EXHAUSTED, limit: 0`).
-  This isn't a code bug — the local usage tracker just can't see that the
-  server-side free tier has no `pro` quota at all — but it means the
-  hierarchical/review/writer path can't complete until the key has paid
-  `pro` access, or those steps are pointed at `flash`.
+  Reviewer → Worker → Writer): full real run verified end-to-end
+  (`tests/test_hierarchical.py`, ~8.5 min, real Gemini + PubMed calls) —
+  Director decomposed the goal, Reviewer rejected an under-specified first
+  draft with concrete feedback then approved the revision, all 7 worker
+  subtasks executed, and the Writer produced a complete 15KB Markdown
+  report (`work/report.md`). `gemini-2.5-pro` has been removed from the
+  free tier (confirmed via `429 RESOURCE_EXHAUSTED, limit: 0`); the `pro`
+  tier slot now points at `gemini-3.5-flash` (`MODEL_PRO` in
+  `src/configs/settings.py`), which ran with zero errors.
 
 ## Quickstart
 
@@ -53,7 +51,7 @@ cp .env.example .env
 # edit .env: GEMINI_API_KEY, NCBI_EMAIL (and optionally NCBI_API_KEY)
 
 # 2. Use the myelin conda env (has all deps already installed)
-conda activate myelin   # env at /home/sarthak/miniconda3/envs/myelin
+conda activate myelin   
 
 # 3. Run
 python -m src.main "Search PubMed for 'CRISPR off-target' and summarize findings" --auto-approve
@@ -83,7 +81,8 @@ Most tests mock the LLM/network. A few are opt-in and marked accordingly:
 
 ## Coming soon
 
-* Quota-aware tier fallback for the Reviewer/Writer steps (so hierarchical
-  mode degrades to `flash` instead of failing when `pro` is unavailable).
 * Verified Docker build/run path.
 * Broader bioinformatics tool coverage.
+* Quota-aware tier fallback in general (today, if a configured tier model
+  is fully exhausted or removed from the free tier, calls fail rather than
+  cascading to another tier automatically).

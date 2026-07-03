@@ -21,7 +21,7 @@ class Settings(BaseModel):
     ncbi_api_key: str | None = os.getenv("NCBI_API_KEY")
 
     # Model tiers for cascading fallback (using available free tier models)
-    model_pro: str = os.getenv("MODEL_PRO", "gemini-2.5-pro")
+    model_pro: str = os.getenv("MODEL_PRO", "gemini-3.5-flash")
     model_flash: str = os.getenv("MODEL_FLASH", "gemini-2.5-flash")
     model_lite: str = os.getenv("MODEL_LITE", "gemini-2.5-flash-lite")
     
@@ -79,7 +79,7 @@ class Settings(BaseModel):
             log_level=get("log_level", "INFO"),
             ncbi_email=get("ncbi_email", ""),
             ncbi_api_key=get("ncbi_api_key", None),
-            model_pro=get("model_pro", "gemini-2.5-pro"),
+            model_pro=get("model_pro", "gemini-3.5-flash"),
             model_flash=get("model_flash", "gemini-2.5-flash"),
             model_lite=get("model_lite", "gemini-2.5-flash-lite"),
             quota_pro=int(get("quota_pro", 50)),
