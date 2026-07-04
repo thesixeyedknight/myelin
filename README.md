@@ -43,17 +43,27 @@ Verified working end-to-end (this session, real Gemini + NCBI calls):
   tier slot now points at `gemini-3.5-flash` (`MODEL_PRO` in
   `src/configs/settings.py`), which ran with zero errors.
 
-## Quickstart
+## Setup
+
+Requires Python 3.11+ and a [Gemini API key](https://aistudio.google.com/apikey).
 
 ```bash
-# 1. Configure secrets
+# 1. Clone and enter the repo
+git clone git@github.com:thesixeyedknight/myelin.git && cd myelin
+
+# 2. Create and activate an environment, then install dependencies
+conda create -n myelin python=3.11 -y
+conda activate myelin
+pip install -r requirements.txt
+
+# (no conda? use a venv instead of steps 2-3 above)
+# python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
+
+# 3. Configure secrets
 cp .env.example .env
 # edit .env: GEMINI_API_KEY, NCBI_EMAIL (and optionally NCBI_API_KEY)
 
-# 2. Use the myelin conda env (has all deps already installed)
-conda activate myelin   
-
-# 3. Run
+# 4. Run
 python -m src.main "Search PubMed for 'CRISPR off-target' and summarize findings" --auto-approve
 ```
 
@@ -78,6 +88,54 @@ python -m pytest tests/ -q
 Most tests mock the LLM/network. A few are opt-in and marked accordingly:
 `@pytest.mark.network` (real PubMed calls) and `@pytest.mark.integration`
 (real Gemini calls, skipped automatically if no API key is set).
+
+## Example test cases
+
+`scripts/verify.py` runs a small matrix of real end-to-end goals against a
+live Gemini key and checks that the expected tools got called:
+
+```bash
+python scripts/verify.py          # run the whole matrix
+python scripts/verify.py UC3_L2   # run a single case by id
+```
+
+**Good performance** — `UC3_L2` ("Data QC - Complex") asks the agent to
+scan `data/*.log` for an `Error rate: X%` line and flag files where
+`X > 1.0`. The fixtures make the expected answer unambiguous:
+
+| File | Contents | Expected result |
+| --- | --- | --- |
+| `data/good.log` | `Error rate: 0.5%` | not flagged (below threshold) |
+| `data/bad.log` | `Error rate: 2.5%` | flagged (above threshold) |
+
+A correct run prints exactly `data/bad.log` and nothing else — the agent
+writes a `{CODE:}` step that parses both files and applies the threshold,
+rather than guessing from the filenames.
+
+**Correct handling of bad input** — `tests/test_rag_adversarial.py`
+indexes a CRISPR research document, then asks an off-topic question
+("What does the document say about quantum computing?"):
+
+```bash
+python -m pytest tests/test_rag_adversarial.py -v
+```
+
+Good performance here means `query_knowledge` returns a `warning` and no
+fabricated answer, instead of hallucinating a response from unrelated
+chunks — this is the case the test asserts on.
+
+**Known failure mode** — the `pro` tier has no automatic fallback yet
+(see [Coming soon](#coming-soon)). If the configured `pro` model is
+exhausted or deprecated, calls fail hard instead of retrying on `flash`:
+
+```
+429 RESOURCE_EXHAUSTED, limit: 0
+```
+
+This was hit for real when `gemini-2.5-pro` was pulled from the free tier;
+the workaround today is to repoint `MODEL_PRO` in
+`src/configs/settings.py` at a live model, not to rely on the agent to
+degrade gracefully.
 
 ## Coming soon
 
