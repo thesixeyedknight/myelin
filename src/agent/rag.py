@@ -9,6 +9,7 @@ import json
 
 from src.configs.settings import SETTINGS
 from src.utils.logging import LOGGER
+from src.rag.store import MyelinEmbeddingFunction
 
 
 def chunk_text(text: str, chunk_size: int = 500, overlap: int = 100) -> List[str]:
@@ -39,14 +40,27 @@ class RAGManager:
             path=str(self.persist_dir),
             settings=ChromaSettings(anonymized_telemetry=False)
         )
-        
+
         # Get or create collection
-        self.collection = self.client.get_or_create_collection(
-            name=SETTINGS.rag_collection_name,
-            metadata={"description": "Myelin research knowledge base"}
-        )
-        
+        self.collection = self._get_or_create_collection()
+
         LOGGER.log(event="rag_init", collection=SETTINGS.rag_collection_name)
+
+    def _get_or_create_collection(self):
+        """Chroma's `embedding_function` param defaults to its own bundled
+        local embedder (ONNXMiniLM_L6_V2) when omitted - passing
+        `embedding_function=None` explicitly would disable embedding rather
+        than fall back to that default, so we only pass the kwarg at all
+        when overriding it. Gemini keeps Chroma's bundled default (unchanged
+        behavior); Ollama has no equivalent bundled option, so it routes
+        through LLMClient.embed() -> OLLAMA_EMBED_MODEL instead."""
+        kwargs: Dict[str, Any] = {
+            "name": SETTINGS.rag_collection_name,
+            "metadata": {"description": "Myelin research knowledge base"},
+        }
+        if SETTINGS.llm_provider == "ollama":
+            kwargs["embedding_function"] = MyelinEmbeddingFunction()
+        return self.client.get_or_create_collection(**kwargs)
     
     def index_document(
         self, 
@@ -214,10 +228,7 @@ class RAGManager:
         """Clear the entire collection (for testing)."""
         try:
             self.client.delete_collection(SETTINGS.rag_collection_name)
-            self.collection = self.client.create_collection(
-                name=SETTINGS.rag_collection_name,
-                metadata={"description": "Myelin research knowledge base"}
-            )
+            self.collection = self._get_or_create_collection()
             LOGGER.log(event="rag_clear")
             return {"status": "Collection cleared"}
         except Exception as e:

@@ -12,7 +12,9 @@ class Doc:
     meta: dict
 
 
-class GeminiEmbeddingFunction(EmbeddingFunction):
+class MyelinEmbeddingFunction(EmbeddingFunction):
+    """Embeds via LLMClient, which follows SETTINGS.llm_provider (Gemini or Ollama)."""
+
     def __init__(self):
         self.client = LLMClient()
 
@@ -27,7 +29,7 @@ class TinyStore:
         self.client = chromadb.Client()
         self.collection = self.client.create_collection(
             name="myelin_rag",
-            embedding_function=GeminiEmbeddingFunction()
+            embedding_function=MyelinEmbeddingFunction()
         )
 
     def add(self, doc: Doc):

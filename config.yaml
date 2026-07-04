@@ -4,6 +4,14 @@
 gemini_model: "gemini-2.5-flash"
 log_level: "INFO"
 
+# LLM provider: "gemini" (default) or "ollama" (local, no quota gating)
+# llm_provider: "ollama"
+# ollama_host: "http://localhost:11434"
+# ollama_model_pro: "llama3"
+# ollama_model_flash: "llama3"
+# ollama_model_lite: "llama3"
+# ollama_embed_model: "nomic-embed-text"
+
 # NCBI Settings (for PubMed)
 ncbi_email: "your_email@example.com"
 # ncbi_api_key: "your_api_key"

@@ -79,6 +79,29 @@ per-tier model names/quotas (`MODEL_PRO`/`QUOTA_PRO`, etc.), sandbox limits
 (`MAX_WORKER_SECONDS`, `MAX_WORKER_MEMORY_MB`), and RAG tuning
 (`RAG_CHUNK_SIZE`, `RAG_RELEVANCE_THRESHOLD`, ...).
 
+### LLM provider: Gemini or Ollama
+
+`LLM_PROVIDER` selects the backend (`gemini`, the default, or `ollama`):
+
+```bash
+LLM_PROVIDER=ollama
+OLLAMA_HOST=http://localhost:11434      # default
+OLLAMA_MODEL_PRO=llama3                 # heavy reasoning: Reviewer, Writer
+OLLAMA_MODEL_FLASH=llama3               # default: planner, summarizer
+OLLAMA_MODEL_LITE=llama3                # cheap/high-volume: Director decompose
+OLLAMA_EMBED_MODEL=nomic-embed-text     # RAG indexing/query (pull it: `ollama pull nomic-embed-text`)
+```
+
+Unlike Gemini's `pro`/`flash`/`lite` tiers — which cascade to a lower tier when
+a daily quota (`QUOTA_PRO`, etc.) is exhausted, because those quotas exist to
+ration a rate-limited cloud API — Ollama has no call limits, so there's
+nothing to ration: each tier just runs whichever local model you point it at,
+with no quota tracking or auto-fallback. Point all three `OLLAMA_MODEL_*`
+vars at the same model if you don't want per-role differentiation. When
+`LLM_PROVIDER=ollama`, RAG embeddings also switch to `OLLAMA_EMBED_MODEL`
+instead of Gemini's `text-embedding-004`, so an Ollama-only setup needs no
+`GEMINI_API_KEY` at all.
+
 ## Testing
 
 ```bash

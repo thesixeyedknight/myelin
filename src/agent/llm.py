@@ -7,35 +7,20 @@ from tenacity import retry, wait_exponential_jitter, stop_after_attempt
 from src.configs.settings import SETTINGS
 from src.agent.rate_limits import MODEL_MANAGER, ModelTier, LLM_RPM
 from src.utils.logging import LOGGER
-
-# Google GenAI SDK (GA)
-from google import genai
-from google.genai import types, errors
+from src.llm.providers import get_provider, QuotaExceededError
 
 
 class LLMClient:
     def __init__(self, model: Optional[str] = None, save_io: bool | None = None):
-        # Note: model param is for backward compatibility; tier is now preferred
-        self.model_name = model or SETTINGS.gemini_model
-        # Client picks API key from env automatically; we also pass explicitly if present.
-        self.client = genai.Client(api_key=SETTINGS.gemini_api_key or None)
+        # Note: model param is for backward compatibility (used by
+        # src/agent/token_budget.py to count tokens for a specific model);
+        # tier is now preferred for generate().
+        self.provider = get_provider(SETTINGS.llm_provider)
+        default_model = (
+            SETTINGS.ollama_model_flash if SETTINGS.llm_provider == "ollama" else SETTINGS.gemini_model
+        )
+        self.model_name = model or default_model
         self.save_io = SETTINGS.save_llm_io if save_io is None else save_io
-
-        # Get model token limits (best-effort)
-        try:
-            info = self.client.models.get(model=self.model_name)
-            self.input_token_limit = getattr(info, "input_token_limit", None)
-            self.output_token_limit = getattr(info, "output_token_limit", None)
-            LOGGER.debug(
-                event="llm_model_info",
-                model=self.model_name,
-                input_token_limit=self.input_token_limit,
-                output_token_limit=self.output_token_limit,
-            )
-        except Exception as e:
-            LOGGER.warn(event="llm_model_info_failed", model=self.model_name, msg=str(e))
-            self.input_token_limit = None
-            self.output_token_limit = None
 
     def _dump_io(self, tag: str, kind: str, text: str):
         if not self.save_io:
@@ -46,11 +31,9 @@ class LLMClient:
         (d / f"{ts}_{tag}_{kind}.txt").write_text(text, encoding="utf-8")
 
     def count_tokens(self, system_prompt: str, user_prompt: str) -> int:
-        """Model-specific token count using SDK; returns 0 if it fails."""
-        combined = (system_prompt or "") + "\n" + (user_prompt or "")
+        """Model-specific token count via the active provider; returns 0 if it fails."""
         try:
-            resp = self.client.models.count_tokens(model=self.model_name, contents=combined)
-            return int(getattr(resp, "total_tokens", 0))
+            return self.provider.count_tokens(system_prompt, user_prompt, self.model_name)
         except Exception:
             return 0
 
@@ -88,37 +71,25 @@ class LLMClient:
         self._dump_io(tag, "prompt_system", system_prompt)
         self._dump_io(tag, "prompt_user", user_prompt)
 
-        config = types.GenerateContentConfig(
-            system_instruction=system_prompt,
-            response_mime_type=response_mime_type,  # e.g., "application/json"
-        )
         try:
-            response = self.client.models.generate_content(
-                model=model_name,
-                contents=user_prompt,
-                config=config,
-            )
+            text, raw_usage = self.provider.generate(system_prompt, user_prompt, model_name, response_mime_type)
             # Record successful request
             MODEL_MANAGER.increment(actual_tier)
-        except errors.APIError as e:
+        except QuotaExceededError as e:
             LOGGER.error(event="llm_generate_error", tag=tag, tier=actual_tier, msg=str(e))
-            # Check if it's a 429 (quota exceeded)
-            if "429" in str(e) or "Resource exhausted" in str(e):
-                # Let ModelManager handle fallback on next call
-                raise
+            # Let ModelManager handle fallback on next call
+            raise
+        except Exception as e:
+            LOGGER.error(event="llm_generate_error", tag=tag, tier=actual_tier, msg=str(e))
             # Let tenacity handle other retries
             raise
 
-        text = response.text or ""
         self._dump_io(tag, "response_text", text)
 
-        usage = getattr(response, "usage_metadata", None)
-        usage_dict = {}
-        if usage:
+        usage_dict: Dict[str, Any] = {}
+        if raw_usage:
             usage_dict = {
-                "prompt_token_count": getattr(usage, "prompt_token_count", None),
-                "candidates_token_count": getattr(usage, "candidates_token_count", None),
-                "total_token_count": getattr(usage, "total_token_count", None),
+                **raw_usage,
                 "tier_used": actual_tier,
                 "quota_stats": MODEL_MANAGER.get_stats(),
             }
@@ -137,12 +108,9 @@ class LLMClient:
         return text, usage_dict, actual_tier
 
     def embed(self, text: str) -> list[float]:
-        """Generate embeddings for a single string."""
+        """Generate embeddings for a single string using the active provider."""
+        embed_model = SETTINGS.ollama_embed_model if SETTINGS.llm_provider == "ollama" else "text-embedding-004"
         try:
-            resp = self.client.models.embed_content(
-                model="text-embedding-004",
-                contents=text,
-            )
-            return resp.embeddings[0].values
+            return self.provider.embed(text, embed_model)
         except Exception:
             return []

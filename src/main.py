@@ -25,7 +25,7 @@ def main():
     LOGGER.set_level("DEBUG" if args.verbose else SETTINGS.log_level)
 
     console.print(Panel.fit(f"[bold blue]Myelin Research Agent[/bold blue]\nGoal: {args.goal}", title="Welcome"))
-    console.print(f"[dim]Model: {SETTINGS.gemini_model}[/dim]")
+    console.print(f"[dim]Provider: {SETTINGS.llm_provider}[/dim]")
 
     LOGGER.info(event="start", goal=args.goal, auto_approve=args.auto_approve,
                 verbose=args.verbose, save_llm=args.save_llm)

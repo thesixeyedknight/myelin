@@ -45,9 +45,18 @@ class Settings(BaseModel):
     rag_max_file_size_mb: int = int(os.getenv("RAG_MAX_FILE_SIZE_MB", 10))
     rag_relevance_threshold: float = float(os.getenv("RAG_RELEVANCE_THRESHOLD", 0.3))
 
-    # Local LLM settings
-    llm_backend: str = os.getenv("LLM_BACKEND", "ollama")
-    llm_model_name: str = os.getenv("LLM_MODEL_NAME", "llama3")
+    # LLM provider selection: "gemini" (default, quota-limited cloud API) or
+    # "ollama" (local, unlimited calls - no quota gating applies to it).
+    llm_provider: str = os.getenv("LLM_PROVIDER", "gemini")
+
+    # Ollama settings. Tiers are plain manual model choices (unlike Gemini's
+    # tiers, there's no quota to ration, so no auto-selection logic here -
+    # the user just points each tier at whichever local model they want).
+    ollama_host: str = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+    ollama_model_pro: str = os.getenv("OLLAMA_MODEL_PRO", "llama3")
+    ollama_model_flash: str = os.getenv("OLLAMA_MODEL_FLASH", "llama3")
+    ollama_model_lite: str = os.getenv("OLLAMA_MODEL_LITE", "llama3")
+    ollama_embed_model: str = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
 
     @classmethod
     def load(cls) -> Settings:
@@ -94,11 +103,13 @@ class Settings(BaseModel):
             rag_chunk_overlap=int(get("rag_chunk_overlap", 100)),
             rag_max_file_size_mb=int(get("rag_max_file_size_mb", 10)),
             rag_relevance_threshold=float(get("rag_relevance_threshold", 0.3)),
-            llm_backend=get("llm_backend", "ollama"),
-            llm_model_name=get("llm_model_name", "llama3"),
+            llm_provider=get("llm_provider", "gemini"),
+            ollama_host=get("ollama_host", "http://localhost:11434"),
+            ollama_model_pro=get("ollama_model_pro", "llama3"),
+            ollama_model_flash=get("ollama_model_flash", "llama3"),
+            ollama_model_lite=get("ollama_model_lite", "llama3"),
+            ollama_embed_model=get("ollama_embed_model", "nomic-embed-text"),
         )
 
 
 SETTINGS = Settings.load()
-LLM_BACKEND = SETTINGS.llm_backend
-MODEL_NAME = SETTINGS.llm_model_name

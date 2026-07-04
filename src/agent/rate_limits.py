@@ -42,16 +42,24 @@ class ModelManager:
     def __init__(self, usage_file: str = "work/usage.json"):
         self.usage_file = Path(usage_file)
         self.usage_file.parent.mkdir(exist_ok=True)
+        self.provider = SETTINGS.llm_provider
         self.quotas = {
             "pro": SETTINGS.quota_pro,
             "flash": SETTINGS.quota_flash,
             "lite": SETTINGS.quota_lite
         }
-        self.models = {
-            "pro": SETTINGS.model_pro,
-            "flash": SETTINGS.model_flash,
-            "lite": SETTINGS.model_lite
-        }
+        if self.provider == "ollama":
+            self.models = {
+                "pro": SETTINGS.ollama_model_pro,
+                "flash": SETTINGS.ollama_model_flash,
+                "lite": SETTINGS.ollama_model_lite
+            }
+        else:
+            self.models = {
+                "pro": SETTINGS.model_pro,
+                "flash": SETTINGS.model_flash,
+                "lite": SETTINGS.model_lite
+            }
         self.usage = self._load_usage()
     
     def _load_usage(self) -> dict:
@@ -87,6 +95,11 @@ class ModelManager:
         Returns (model_name, tier) based on availability.
         Cascades from preferred -> lower tiers if quota exhausted.
         """
+        # Ollama has no call limits, so there's nothing to ration - just use
+        # whichever local model the user configured for this tier.
+        if self.provider == "ollama":
+            return self.models[preferred_tier], preferred_tier
+
         # Check if it's a new day
         if self.usage.get("date") != str(date.today()):
             self.usage = self._reset_usage()
@@ -119,6 +132,13 @@ class ModelManager:
     
     def get_stats(self) -> dict:
         """Return current usage stats."""
+        if self.provider == "ollama":
+            return {
+                "date": self.usage["date"],
+                "pro": f"{self.usage['pro']} (unlimited)",
+                "flash": f"{self.usage['flash']} (unlimited)",
+                "lite": f"{self.usage['lite']} (unlimited)",
+            }
         return {
             "date": self.usage["date"],
             "pro": f"{self.usage['pro']}/{self.quotas['pro']}",
